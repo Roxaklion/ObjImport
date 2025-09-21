@@ -13,6 +13,10 @@ using KKAPI.Studio.SaveLoad;
 using Studio;
 using HarmonyLib;
 using Vectrosity;
+using KK_Plugins.MaterialEditor;
+using MaterialEditorAPI;
+using StrayTech;
+using static ObjImport.ObjImporter;
 
 namespace ObjImport
 {
@@ -25,9 +29,15 @@ namespace ObjImport
         //plugin
         public const string PluginName = "KK_ObjImport";
         public const string GUID = "org.njaecha.plugins.objimport";
-        public const string Version = "2.1.5";
+        public const string Version = "3.0.0";
 
         internal new static ManualLogSource Logger;
+
+        //Importer
+        public ObjImporter importer = null;
+        public ObjImporterAdvanced importerAdvanced = null;
+        public static MaterialImporter materialImporter = null;
+
 
         //ui
         public string path = "";
@@ -50,9 +60,12 @@ namespace ObjImport
         bool drawDebug = false;
         List<VectorLine> debugLines = new List<VectorLine>();
 
+        public static Dictionary<string, string> meshNameToMeshMaterial = new Dictionary<string, string>();
+
         void Awake()
         {
             ObjImport.Logger = base.Logger;
+            ObjImport.materialImporter = new MaterialImporter(base.Logger);
             //config
             KeyboardShortcut defaultShortcut = new KeyboardShortcut(KeyCode.O);
             hotkey = Config.Bind("_General_", "Hotkey", defaultShortcut, "Press this key to open the UI");
@@ -109,7 +122,7 @@ namespace ObjImport
                 return;
             }
             path = path.Replace("\"", "");
-            path = path.Replace("\\","/");
+            path = path.Replace("\\", "/");
             if (!File.Exists(path))
             {
                 Logger.LogMessage($"File [{path}] does not exist");
@@ -140,7 +153,7 @@ namespace ObjImport
                     {
                         if (multiObjectMode == false)
                         {
-                            mesh = meshFromObj(path);
+                            mesh = meshWithMaterialFromObj(path);
                             if (mesh == null)
                                 return;
                             Logger.LogInfo($"Loaded mesh from file [{path}]");
@@ -148,42 +161,42 @@ namespace ObjImport
                             {
                                 foreach (var i in selectItems)
                                 {
+                                    i.treeNodeObject.textName = path.Substring(path.LastIndexOf("/")).Remove(0, 1);
                                     remeshObject(i, new List<Mesh> { mesh });
                                     OCIItem item = (OCIItem)i;
                                     Logger.LogInfo($"Mesh applied to object [{item.objectItem.name}]");
-                                    i.treeNodeObject.textName = path.Substring(path.LastIndexOf("/")).Remove(0, 1);
                                 }
                             }
                             else
                             {
                                 OCIItem item = Studio.AddObjectItem.Add(1, 1, 1);
+                                item.treeNodeObject.textName = path.Substring(path.LastIndexOf("/")).Remove(0, 1);
                                 remeshObject(item, new List<Mesh> { mesh });
                                 Logger.LogInfo($"Mesh applied to object [{item.objectItem.name}]");
-                                item.treeNodeObject.textName = path.Substring(path.LastIndexOf("/")).Remove(0, 1);
                             }
                         }
                         else
                         {
-                            List<Mesh> meshes = meshesFromObj(path);
+                            List<Mesh> meshes = meshesWithMaterialFromObj(path);
                             if (meshes == null)
                                 return;
                             Logger.LogMessage($"Successfully loaded meshes from [{path}]");
-                            
+
                             if (selectItems.Count >= 1)
                             {
                                 foreach (var i in selectItems)
                                 {
+                                    ((OCIItem)i).treeNodeObject.textName = path.Substring(path.LastIndexOf("/")).Remove(0, 1);
                                     remeshObject(i, meshes);
                                     Logger.LogInfo($"Mesh applied to object [{((OCIItem)i).objectItem.name}]");
-                                    ((OCIItem)i).treeNodeObject.textName = path.Substring(path.LastIndexOf("/")).Remove(0, 1);
                                 }
                             }
                             else
                             {
                                 OCIItem item = Studio.AddObjectItem.Add(1, 1, 1);
+                                item.treeNodeObject.textName = path.Substring(path.LastIndexOf("/")).Remove(0, 1);
                                 remeshObject(item, meshes);
                                 Logger.LogInfo($"Mesh applied to object [{item.objectItem.name}]");
-                                item.treeNodeObject.textName = path.Substring(path.LastIndexOf("/")).Remove(0, 1);
                             }
                         }
                     }
@@ -205,7 +218,7 @@ namespace ObjImport
                     {
                         if (multiObjectMode == false)
                         {
-                            Mesh mesh = meshFromObj(path);
+                            Mesh mesh = meshWithMaterialFromObj(path);
                             if (mesh == null)
                             {
                                 Logger.LogMessage("Loading failed!");
@@ -219,7 +232,7 @@ namespace ObjImport
                         }
                         else
                         {
-                            List<Mesh> meshes = meshesFromObj(path);
+                            List<Mesh> meshes = meshesWithMaterialFromObj(path);
                             if (meshes == null)
                             {
                                 Logger.LogMessage("Loading failed!");
@@ -236,31 +249,43 @@ namespace ObjImport
             }
         }
 
-        /// <summary>
-        /// Loads a mesh from an .obj file
-        /// </summary>
-        /// <param name="path">Filepath (location) of the .obj file</param>
-        /// <returns></returns>
-        private Mesh meshFromObj(string path)
+        private Mesh meshWithMaterialFromObj(string path)
         {
-            Logger.LogMessage("Loading Mesh...");
-            Mesh mesh = new Mesh();
-            string[] lines = File.ReadAllLines(path);
+            Logger.LogMessage("Loading Mesh+Material...");
+            importer = new ObjImporter(Logger);
+            
+            // count faces to see if >65535
             int vertexCount = 0;
-
-            foreach (string line in lines)
+            foreach (string line in File.ReadAllLines(path))
             {
                 if (line.StartsWith("f "))
                 {
-                    char[] splitIdentifier = { ' ' };
-                    string[] x = line.Split(splitIdentifier);
-                    vertexCount += (x.Length -1);
+                    string[] parts = line.Split(' ');
+                    vertexCount += (parts.Length - 1);
                 }
             }
 
-            mesh = new ObjImporter().ImportFile(path, (vertexCount > 65535));
+            //Logger.LogMessage("Start MeshData Import...");
+            MeshDto meshData = importer.ImportFile(path);
+
+            //Logger.LogMessage("Converting to Meshes...");
+            Mesh mesh = importer.convertToMesh(meshData, (vertexCount > 65535));
+
+            //Override the mesh name to resemble singular file (will also apply to material mapping)
+            string objFileName = path.Substring(path.LastIndexOf("/"));
+            mesh.name = objFileName.Remove(objFileName.LastIndexOf(".")).Remove(0, 1);
+            meshData.name = mesh.name;
+
+            //Register the mapping from mesh to meshDto (remember connection)
+            //Logger.LogMessage("Mapping: " + mesh.name + " - " + meshData.usedMaterial);
+            meshNameToMeshMaterial[mesh.name] = meshData.usedMaterial;
+
+            //Populate the material importer memory
+            Logger.LogMessage("Start Material Import...");
+            ObjImport.materialImporter.importMaterials(path, meshData);
+
             if (mesh == null)
-                Logger.LogError("Mesh could not be loaded.");
+                Logger.LogError("Mesh+Material could not be loaded.");
             else
             {
                 Vector3[] baseVertices = mesh.vertices;
@@ -272,23 +297,22 @@ namespace ObjImport
                     vertex.y = (float)(vertex.y * scales[scaleSelection]);
                     vertex.z = (float)(vertex.z * scales[scaleSelection]);
                     vertices[i] = vertex;
-                }              
+                }
                 mesh.vertices = vertices;
                 flipCoordinates(mesh);
 
             }
-            string objFileName = path.Substring(path.LastIndexOf("/"));
-            mesh.name = objFileName.Remove(objFileName.LastIndexOf(".")).Remove(0, 1);
+
             return mesh;
         }
-        /// <summary>
-        /// Loads meshes from an .obj file
-        /// </summary>
-        /// <param name="path">Filepath (location) of the .obj file</param>
-        /// <returns></returns>
-        private List<Mesh> meshesFromObj(string path)
+
+        private List<Mesh> meshesWithMaterialFromObj(string path)
         {
-            Logger.LogMessage("Loading Meshes...");
+            Logger.LogMessage("Loading Meshes+Material...");
+
+            importerAdvanced = new ObjImporterAdvanced(Logger);
+            ObjImport.materialImporter = new MaterialImporter(Logger);
+
             List<Mesh> meshes = new List<Mesh>();
             string[] lines = File.ReadAllLines(path);
             int vertexCount = 0;
@@ -299,11 +323,26 @@ namespace ObjImport
                 {
                     char[] splitIdentifier = { ' ' };
                     string[] x = line.Split(splitIdentifier);
-                    vertexCount += (x.Length -1);
+                    vertexCount += (x.Length - 1);
                 }
             }
 
-            meshes = new ObjImporterAdvanced().ImportFile(path, (vertexCount > 65535));
+            //Logger.LogMessage("Start Advanced MeshData Import...");
+            List<MeshAdvancedDto> meshDatas = importerAdvanced.ImportFile(path);
+
+            //Logger.LogMessage("Converting to Meshes...");
+            meshes = importerAdvanced.convertToMesh(meshDatas, (vertexCount > 65535));
+
+            //Register the mapping from mesh to meshDto (remember connection)
+            for (int i = 0; i < meshes.Count; i++)
+            {
+                meshNameToMeshMaterial[meshes[i].name] = meshDatas[i].usedMaterial;
+            }
+
+            //Populate the material importer memory
+            Logger.LogMessage("Start Material Import...");
+            ObjImport.materialImporter.importMaterials(path, meshDatas);
+
             if (meshes == null)
                 Logger.LogError("Mesh could not be loaded.");
             else
@@ -327,12 +366,16 @@ namespace ObjImport
             return meshes;
         }
 
+
         /// <summary>
         /// Flips a mesh according to the current flip settings
         /// </summary>
         /// <param name="mesh">Mesh to flip</param>
         public void flipCoordinates(Mesh mesh)
         {
+            if (mesh.normals == null || mesh.normals.Length != mesh.vertexCount)
+                mesh.RecalculateNormals();
+
             Vector3[] baseVertices = mesh.vertices;
             Vector3[] baseNormals = mesh.normals;
             var vertices = new Vector3[baseVertices.Length];
@@ -394,14 +437,36 @@ namespace ObjImport
             MeshFilter meshFilter = rootObject.GetComponentInChildren<MeshFilter>();
             MeshRenderer meshRenderer = rootObject.GetComponentInChildren<MeshRenderer>();
             GameObject first = meshFilter.transform.gameObject;
+
+            List<Renderer> renderes = new List<Renderer>();
             meshFilter.mesh = meshes[0];
+
             if (meshes[0].name != null && meshes[0].name != "")
             {
                 first.name = meshes[0].name;
                 meshRenderer.material.name = meshes[0].name;
+
+
+                //string materialKey = ((OCIItem)oci).treeNodeObject.textName;
+                string materialKey = "default";
+                if (meshNameToMeshMaterial.ContainsKey(meshes[0].name))
+                {
+                    materialKey = meshNameToMeshMaterial[meshes[0].name];
+                }
+
+                //look up loaded material texture
+                if (ObjImport.materialImporter.meshMaterialMap.ContainsKey(materialKey))
+                {
+                    MtlData mtlData = ObjImport.materialImporter.meshMaterialMap[materialKey];
+                    RegisterMaterialsWithMaterialEditor(meshes[0], meshRenderer, mtlData);
+                }
+                else
+                {
+                    Logger.LogMessage("No Material of Key: " + materialKey);
+                }
+                
             }
 
-            List<Renderer> renderes = new List<Renderer>();
             renderes.Add(meshRenderer);
 
 
@@ -415,12 +480,33 @@ namespace ObjImport
                 addObject.transform.rotation = meshFilter.transform.rotation;
                 addObject.transform.localScale = meshFilter.transform.localScale;
                 MeshFilter addMeshFilter = addObject.AddComponent<MeshFilter>();
-                MeshRenderer addMeshRenderer = addObject.AddComponent<MeshRenderer>();
-                Material secondMaterial = new Material(meshRenderer.material);
-                secondMaterial.name = mesh.name;
-                addMeshRenderer.material = secondMaterial;
-                renderes.Add(addMeshRenderer);
+
+                //string materialKey = ((OCIItem)oci).treeNodeObject.textName;
+                string materialKey = "default";
+                if (meshNameToMeshMaterial.ContainsKey(mesh.name))
+                {
+                    materialKey = meshNameToMeshMaterial[mesh.name];
+                }
+
+                //look up loaded material texture
+                if (ObjImport.materialImporter.meshMaterialMap.ContainsKey(materialKey))
+                {
+                    MtlData mtlData = ObjImport.materialImporter.meshMaterialMap[materialKey];
+                    Renderer newRenderer = RegisterMaterialsWithMaterialEditor(addObject, mesh, meshRenderer, mtlData);
+                    renderes.Add(newRenderer);
+                }
+                else
+                {
+                    Logger.LogMessage("No Material of Key: " + materialKey);
+                    MeshRenderer addMeshRenderer = addObject.AddComponent<MeshRenderer>();
+                    Material secondMaterial = new Material(meshRenderer.material);
+                    secondMaterial.name = mesh.name;
+                    addMeshRenderer.material = secondMaterial;
+                    renderes.Add(addMeshRenderer);
+                }
+
                 addMeshFilter.mesh = mesh;
+
             }
             Renderer[] newRendererArray = renderes.ToArray();
 
@@ -450,8 +536,11 @@ namespace ObjImport
             {
                 GameObject first = meshFilter.transform.gameObject;
                 MeshRenderer meshRenderer = rootObject.GetComponentInChildren<MeshRenderer>();
+                
+                List<Renderer> renderes = new List<Renderer>();
+
                 //Destory parts of the accessory with MeshFilters until only one is left
-                while(rootObject.GetComponentsInChildren<MeshFilter>().Length > 1)
+                while (rootObject.GetComponentsInChildren<MeshFilter>().Length > 1)
                 {
                     DestroyImmediate(rootObject.GetComponentsInChildren<MeshFilter>()[1].gameObject);
                 }
@@ -460,9 +549,26 @@ namespace ObjImport
                 {
                     first.name = meshes[0].name;
                     meshRenderer.material.name = meshes[0].name;
+
+                    string materialKey = "default";
+                    if (meshNameToMeshMaterial.ContainsKey(meshes[0].name))
+                    {
+                        materialKey = meshNameToMeshMaterial[meshes[0].name];
+                    }
+
+                    //look up loaded material texture
+                    if (ObjImport.materialImporter.meshMaterialMap.ContainsKey(materialKey))
+                    {
+                        MtlData mtlData = ObjImport.materialImporter.meshMaterialMap[materialKey];
+                        RegisterMaterialsWithMaterialEditor(meshes[0], meshRenderer, mtlData);
+                    }
+                    else
+                    {
+                        Logger.LogMessage("No Material of Key: " + materialKey);
+                    }
+                    
                 }
 
-                List<Renderer> renderes = new List<Renderer>();
                 renderes.Add(meshRenderer);
 
                 for (int i = 1; i < meshes.Count; i++)
@@ -475,11 +581,31 @@ namespace ObjImport
                     addObject.transform.rotation = meshFilter.transform.rotation;
                     addObject.transform.localScale = meshFilter.transform.localScale;
                     MeshFilter addMeshFilter = addObject.AddComponent<MeshFilter>();
-                    MeshRenderer addMeshRenderer = addObject.AddComponent<MeshRenderer>();
-                    Material secondMaterial = new Material(meshRenderer.material);
-                    secondMaterial.name = mesh.name;
-                    addMeshRenderer.material = secondMaterial;
-                    renderes.Add(addMeshRenderer);
+
+                    string materialKey = "default";
+                    if (meshNameToMeshMaterial.ContainsKey(mesh.name))
+                    {
+                        materialKey = meshNameToMeshMaterial[mesh.name];
+                    }
+
+                    
+                    //look up loaded material texture
+                    if (ObjImport.materialImporter.meshMaterialMap.ContainsKey(materialKey))
+                    {
+                        MtlData mtlData = ObjImport.materialImporter.meshMaterialMap[materialKey];
+                        Renderer newRenderer = RegisterMaterialsWithMaterialEditor(addObject, mesh, meshRenderer, mtlData);
+                        renderes.Add(newRenderer);
+                    }
+                    else
+                    {
+                        Logger.LogMessage("No Material of Key: " + materialKey);
+                        MeshRenderer addMeshRenderer = addObject.AddComponent<MeshRenderer>();
+                        Material secondMaterial = new Material(meshRenderer.material);
+                        secondMaterial.name = mesh.name;
+                        addMeshRenderer.material = secondMaterial;
+                        renderes.Add(addMeshRenderer);
+                    }
+
                     addMeshFilter.mesh = mesh;
                 }
 
@@ -500,6 +626,35 @@ namespace ObjImport
                 return false;
             }
         }
+
+
+        internal static void RegisterMaterialsWithMaterialEditor(Mesh mesh, Renderer renderer, MtlData mtlData)
+        {
+            Logger.LogMessage("Loading Materials of Mesh: " + mesh.name);
+
+            renderer.material.name = mtlData.name;
+            renderer.material.mainTexture = mtlData.texture;
+            renderer.material.color = mtlData.diffuseColor;
+
+        }
+
+        internal static Renderer RegisterMaterialsWithMaterialEditor(GameObject gameObj, Mesh mesh, Renderer renderer, MtlData mtlData)
+        {
+            Logger.LogMessage("Loading Materials of Mesh: " + mesh.name);
+            MeshRenderer addMeshRenderer = gameObj.AddComponent<MeshRenderer>();
+
+            Material secondMaterial = new Material(renderer.material);
+            secondMaterial.name = mtlData.name;
+
+            secondMaterial.mainTexture = mtlData.texture;
+            secondMaterial.color = mtlData.diffuseColor;
+
+            addMeshRenderer.material = secondMaterial;
+
+            return addMeshRenderer;
+
+        }
+
 
         void OnGUI()
         {
