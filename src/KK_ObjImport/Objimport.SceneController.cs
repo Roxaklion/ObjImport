@@ -20,23 +20,41 @@ namespace ObjImport
     {
         [Key(0)] public string name;
         [Key(1)] public string diffuseTexPath;
-        [Key(2)] public Color diffuseColor; 
+        [Key(2)] public Color diffuseColor = Color.white; 
         [Key(3)] public byte[] textureData; // Raw texture data instead of Texture2D
+        [Key(4)] public Color ambientColor = Color.black; // Ka
+        [Key(5)] public Color specularColor = Color.black; // Ks
+        [Key(6)] public Color emissionColor = Color.black; // Ke
+        [Key(7)] public float shininess = 0f; // Ns
+        [Key(8)] public float refractionIndex = 1.0f; // Ni
+        [Key(9)] public float transparency = 1.0f; // d
+        [Key(10)] public int illuminationModel = 2; // illum
+        [Key(11)] public string shaderKey = "Standard";
 
 
+        // Default constructor for MessagePack
         public SerializableMtlData() { }
 
+        // Constructor to convert MtlData to SerializableMtlData
         public SerializableMtlData(MtlData data)
         {
             name = data.name;
             diffuseTexPath = data.diffuseTexPath;
             diffuseColor = data.diffuseColor;
+            ambientColor = data.ambientColor;
+            specularColor = data.specularColor;
+            emissionColor = data.emissionColor;
+            shininess = data.shininess;
+            refractionIndex = data.refractionIndex;
+            transparency = data.transparency;
+            illuminationModel = data.illuminationModel;
+            shaderKey = data.shaderKey;
 
             if (data.texture != null)
             {
                 try
                 {
-                    textureData = data.texture.EncodeToPNG(); // ImageConversion.EncodeToPNG(data.texture);
+                    textureData = data.texture.EncodeToPNG(); // Encode texture as PNG
                 }
                 catch (Exception e)
                 {
@@ -46,13 +64,14 @@ namespace ObjImport
             }
         }
 
+        // Convert back to MtlData
         public MtlData ToMtlData()
         {
             Texture2D tex = null;
             if (textureData != null && textureData.Length > 0)
             {
                 tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                tex.LoadImage(textureData);
+                tex.LoadImage(textureData); // Load the image data into a Texture2D
             }
 
             return new MtlData
@@ -60,6 +79,14 @@ namespace ObjImport
                 name = this.name,
                 diffuseTexPath = this.diffuseTexPath,
                 diffuseColor = this.diffuseColor,
+                ambientColor = this.ambientColor,
+                specularColor = this.specularColor,
+                emissionColor = this.emissionColor,
+                shininess = this.shininess,
+                refractionIndex = this.refractionIndex,
+                transparency = this.transparency,
+                illuminationModel = this.illuminationModel,
+                shaderKey = this.shaderKey,
                 texture = tex
             };
         }
@@ -197,6 +224,7 @@ namespace ObjImport
                         meshes.Add((List<Mesh>)SimpleMeshSerializer.Deserialize(byteArray));
                     }
                 }
+
                 if (data.data.TryGetValue("ids", out var ids) && ids != null)
                 {
                     IDs = MessagePackSerializer.Deserialize<List<int>>((byte[])ids);
