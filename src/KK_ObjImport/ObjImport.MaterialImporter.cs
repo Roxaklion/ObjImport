@@ -59,10 +59,13 @@ namespace ObjImport
 
         public void importMaterials(string filePath, MeshDto data)
         {
-            string mtlPath = Path.Combine(Path.GetDirectoryName(filePath), data.mtlFile);
-            if (File.Exists(mtlPath))
+            if(data.mtlFile != null)
             {
-                LoadMtl(mtlPath);
+                string mtlPath = Path.Combine(Path.GetDirectoryName(filePath), data.mtlFile);
+                if (File.Exists(mtlPath))
+                {
+                    LoadMtl(mtlPath);
+                }
             }
         }
 
@@ -190,7 +193,7 @@ namespace ObjImport
             return null;
         }
 
-        public Material MakeMaterial(MtlData data)
+        public void FillMaterial(Material mat, MtlData data)
         {
             // Try to find Koikatsu's common item shader first
             Shader shader = KK_Plugins.MaterialEditor.MaterialEditorPlugin.LoadedShaders[
@@ -200,7 +203,8 @@ namespace ObjImport
             if (shader == null)
                 shader = Shader.Find("Standard"); // fallback
 
-            Material mat = new Material(shader);
+            mat.shader = shader;
+
             mat.name = data.name;
 
             // Apply diffuse color
@@ -246,8 +250,6 @@ namespace ObjImport
 
             // Apply texture if present
             mat.mainTexture = data.texture;
-
-            return mat;
         }
     }
 }

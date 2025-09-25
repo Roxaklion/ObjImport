@@ -37,11 +37,11 @@ namespace ObjImport
         public ObjImporter importer = null;
         public ObjImporterAdvanced importerAdvanced = null;
         public static MaterialImporter materialImporter = null;
-        public static string selectedShaderKey = "Standard";
+        public static string selectedShaderKey = "Shader Forge/main_item_studio";
         public static List<string> availableShaderSelection = new List<string> {
-            "Standard",
+            "Shader Forge/main_item_studio",
             "KKUSSitem",
-            "KKUTSitem",
+            "KKUTSitem_Tess",
             "AIT/Item",
             "Shader Forge/main_item_ditherd",
             "Shader Forge/main_color",
@@ -639,9 +639,9 @@ namespace ObjImport
 
         internal static void RegisterMaterialsWithMaterialEditor(Mesh mesh, Renderer renderer, MtlData mtlData)
         {
-            Logger.LogMessage("Loading Materials of Mesh: " + mesh.name);
+            //Logger.LogMessage("Loading Materials of Mesh: " + mesh.name);
 
-            renderer.material = ObjImport.materialImporter.MakeMaterial(mtlData);
+            ObjImport.materialImporter.FillMaterial(renderer.material, mtlData);
 
             /*
             renderer.material.name = mtlData.name;
@@ -653,20 +653,13 @@ namespace ObjImport
 
         internal static Renderer RegisterMaterialsWithMaterialEditor(GameObject gameObj, Mesh mesh, Renderer renderer, MtlData mtlData)
         {
-            Logger.LogMessage("Loading Materials of Mesh: " + mesh.name);
+            //Logger.LogMessage("Loading Materials of Mesh: " + mesh.name);
             MeshRenderer addMeshRenderer = gameObj.AddComponent<MeshRenderer>();
 
-            /*
             Material secondMaterial = new Material(renderer.material);
-            secondMaterial.name = mtlData.name;
-
-            secondMaterial.mainTexture = mtlData.texture;
-            secondMaterial.color = mtlData.diffuseColor;
+            ObjImport.materialImporter.FillMaterial(secondMaterial, mtlData);
 
             addMeshRenderer.material = secondMaterial;
-            */
-
-            addMeshRenderer.material = ObjImport.materialImporter.MakeMaterial(mtlData);
 
             return addMeshRenderer;
 
@@ -707,11 +700,24 @@ namespace ObjImport
             List<string> shaderKeys = KK_Plugins.MaterialEditor.MaterialEditorPlugin.LoadedShaders.Keys.ToList();
             int selectedShaderIndex = shaderKeys.IndexOf(ObjImport.selectedShaderKey);
 
+            if(selectedShaderIndex < 0)
+            {
+                foreach (string shaderKey in shaderKeys)
+                {
+                    selectedShaderIndex = shaderKeys.IndexOf(ObjImport.selectedShaderKey);
+                    if(selectedShaderIndex >= 0)
+                    {
+                        break;
+                    }
+                }
+            }
+            
+
             // Dropdown for selecting shader
             GUI.Label(new Rect(10, 20, 220, 20), "Select Shader:");
 
             // Button that opens the dropdown
-            if (GUI.Button(new Rect(10, 45, 220, 20), shaderKeys[selectedShaderIndex]))
+            if (GUI.Button(new Rect(10, 45, 220, 20), selectedShaderIndex >= 0 ? shaderKeys[selectedShaderIndex] : "No matching shader found!"))
             {
                 isDropdownOpen = !isDropdownOpen; // Toggle the dropdown visibility
             }
