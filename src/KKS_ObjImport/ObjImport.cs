@@ -26,7 +26,7 @@ namespace ObjImport
         //plugin
         public const string PluginName = "KKS_ObjImport";
         public const string GUID = "org.njaecha.plugins.objimport";
-        public const string Version = "3.1.0";
+        public const string Version = "3.1.1";
 
         internal new static ManualLogSource Logger;
 
