@@ -249,7 +249,7 @@ namespace ObjImport
                     ObjImport.meshNameToMeshMaterial =
                         MessagePackSerializer.Deserialize<Dictionary<string, string>>((byte[])mapSerialized);
 
-                    ObjImport.Logger.LogMessage($"Restored mesh-to-material map with {ObjImport.meshNameToMeshMaterial.Count} entries.");
+                    //ObjImport.Logger.LogMessage($"Restored mesh-to-material map with {ObjImport.meshNameToMeshMaterial.Count} entries.");
                 }
 
                 // Reapply meshes
@@ -260,7 +260,7 @@ namespace ObjImport
                         OCIItem item = (OCIItem)loadedItems[IDs[x]];
                         List<Mesh> objectMeshes = meshes[x];
                         ObjImport.remeshObject(item, objectMeshes);
-                        ObjImport.Logger.LogMessage($"Meshes + materials loaded for ID [{IDs[x]}]: {item.objectItem.name}");
+                        //ObjImport.Logger.LogMessage($"Meshes + materials loaded for ID [{IDs[x]}]: {item.objectItem.name}");
                     }
                 }
             }
@@ -288,7 +288,7 @@ namespace ObjImport
                     {
                         newItem.treeNodeObject.textName = oldItem.treeNodeObject.textName;
                         ObjImport.remeshObject(copiedItems[id], ObjImport.sceneRemeshedObjects[oldItem]);
-                        ObjImport.Logger.LogDebug($"Meshes copied from {oldItem.objectItem.name} to {newItem.objectItem.name}");
+                        //ObjImport.Logger.LogDebug($"Meshes copied from {oldItem.objectItem.name} to {newItem.objectItem.name}");
                     }
                 }
             }
