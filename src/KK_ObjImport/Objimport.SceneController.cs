@@ -126,9 +126,11 @@ namespace ObjImport
 
                 // Save materials
                 var serializableMaterials = new Dictionary<string, SerializableMtlData>();
-                foreach (var kvp in ObjImport.materialImporter.meshMaterialMap)
+                foreach (var key in ObjImport.materialImporter.meshMaterialMap.Keys)
                 {
-                    serializableMaterials[kvp.Key] = new SerializableMtlData(kvp.Value);
+                    serializableMaterials[key] = new SerializableMtlData(
+                        ObjImport.materialImporter.meshMaterialMap[key]
+                    );
                 }
                 data.data.Add("materials", MessagePackSerializer.Serialize(serializableMaterials));
 
@@ -142,11 +144,8 @@ namespace ObjImport
 
         protected override void OnSceneLoad(SceneOperationKind operation, ReadOnlyDictionary<int, ObjectCtrlInfo> loadedItems)
         {
-
             var data = GetExtendedData();
-
-            //Resets the mateialImporter on scene load
-            ObjImport.materialImporter = new MaterialImporter(ObjImport.Logger);
+            ObjImport.materialImporter.meshMaterialMap = new Dictionary<string, MtlData>(); //reset stored materials on scene load
 
             if (operation == SceneOperationKind.Clear || operation == SceneOperationKind.Load)
             {

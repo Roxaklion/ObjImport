@@ -29,12 +29,10 @@ namespace ObjImport
     {
         
         public Dictionary<string, MtlData> meshMaterialMap = new Dictionary<string, MtlData>();
-        private ManualLogSource Logger;
 
-        public MaterialImporter(ManualLogSource Logger)
+        public MaterialImporter()
         {
-            this.Logger = Logger;
-            this.meshMaterialMap = new Dictionary<string, MtlData>();
+
         }
 
         public MtlData findMaterials(string key)
@@ -54,7 +52,7 @@ namespace ObjImport
                 importMaterials(filePath, data);
             }
 
-            Logger.LogMessage("Loaded " + meshMaterialMap.Count + " materials for " + datas.Count + " Meshes");
+            ObjImport.Logger.LogMessage("Loaded " + meshMaterialMap.Count + " materials for " + datas.Count + " Meshes");
         }
 
         public void importMaterials(string filePath, MeshDto data)

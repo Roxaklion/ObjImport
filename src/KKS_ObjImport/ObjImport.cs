@@ -26,14 +26,14 @@ namespace ObjImport
         //plugin
         public const string PluginName = "KKS_ObjImport";
         public const string GUID = "org.njaecha.plugins.objimport";
-        public const string Version = "3.1.1";
+        public const string Version = "3.1.2";
 
         internal new static ManualLogSource Logger;
 
         //Importer
         public ObjImporter importer = null;
         public ObjImporterAdvanced importerAdvanced = null;
-        public static MaterialImporter materialImporter = null;
+        public static MaterialImporter materialImporter = new MaterialImporter();
         public static string selectedShaderKey = "Standard";
         public static List<string> availableShaderSelection = new List<string> { 
             "Standard", 
@@ -71,7 +71,6 @@ namespace ObjImport
         void Awake()
         {
             ObjImport.Logger = base.Logger;
-            ObjImport.materialImporter = new MaterialImporter(base.Logger);
             //config
             KeyboardShortcut defaultShortcut = new KeyboardShortcut(KeyCode.O);
             hotkey = Config.Bind("_General_", "Hotkey", defaultShortcut, "Press this key to open the UI");
@@ -327,7 +326,6 @@ namespace ObjImport
             Logger.LogMessage("Loading Meshes+Material...");
 
             importerAdvanced = new ObjImporterAdvanced(Logger);
-            ObjImport.materialImporter = new MaterialImporter(Logger);
 
             List<Mesh> meshes = new List<Mesh>();
             string[] lines = File.ReadAllLines(path);
@@ -457,7 +455,7 @@ namespace ObjImport
             if (meshes[0].name != null && meshes[0].name != "")
             {
                 first.name = meshes[0].name;
-                meshRenderer.material.name = meshes[0].name;
+                meshRenderer.sharedMaterial.name = meshes[0].name;
 
 
                 //string materialKey = ((OCIItem)oci).treeNodeObject.textName;
@@ -512,9 +510,9 @@ namespace ObjImport
                 {
                     Logger.LogMessage("No Material of Key: " + materialKey);
                     MeshRenderer addMeshRenderer = addObject.AddComponent<MeshRenderer>();
-                    Material secondMaterial = new Material(meshRenderer.material);
+                    Material secondMaterial = new Material(meshRenderer.sharedMaterial);
                     secondMaterial.name = mesh.name;
-                    addMeshRenderer.material = secondMaterial;
+                    addMeshRenderer.sharedMaterial = secondMaterial;
                     renderes.Add(addMeshRenderer);
                 }
 
@@ -561,7 +559,7 @@ namespace ObjImport
                 if (meshes[0].name != "")
                 {
                     first.name = meshes[0].name;
-                    meshRenderer.material.name = meshes[0].name;
+                    meshRenderer.sharedMaterial.name = meshes[0].name;
 
                     string materialKey = "default";
                     if (meshNameToMeshMaterial.ContainsKey(meshes[0].name))
@@ -612,9 +610,9 @@ namespace ObjImport
                     {
                         Logger.LogMessage("No Material of Key: " + materialKey);
                         MeshRenderer addMeshRenderer = addObject.AddComponent<MeshRenderer>();
-                        Material secondMaterial = new Material(meshRenderer.material);
+                        Material secondMaterial = new Material(meshRenderer.sharedMaterial);
                         secondMaterial.name = mesh.name;
-                        addMeshRenderer.material = secondMaterial;
+                        addMeshRenderer.sharedMaterial = secondMaterial;
                         renderes.Add(addMeshRenderer);
                     }
 
@@ -648,7 +646,7 @@ namespace ObjImport
             renderer.material.color = mtlData.diffuseColor;
             */
 
-            ObjImport.materialImporter.FillMaterial(renderer.material, mtlData);
+            ObjImport.materialImporter.FillMaterial(renderer.sharedMaterial, mtlData);
 
         }
 
@@ -656,10 +654,10 @@ namespace ObjImport
         {
             MeshRenderer addMeshRenderer = gameObj.AddComponent<MeshRenderer>();
 
-            Material secondMaterial = new Material(renderer.material);
+            Material secondMaterial = new Material(renderer.sharedMaterial);
             ObjImport.materialImporter.FillMaterial(secondMaterial, mtlData);
 
-            addMeshRenderer.material = secondMaterial;
+            addMeshRenderer.sharedMaterial = secondMaterial;
 
             return addMeshRenderer;
         }
